@@ -58,6 +58,11 @@ static BOOL LoadDocumentFromPath(HWND hwnd, LPCWSTR path);
 static INT_PTR CALLBACK GoToDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lParam);
 static INT_PTR CALLBACK AboutDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lParam);
 
+static int SaveSetting(LPCWSTR label, const BYTE* data, DWORD size);
+static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size);
+static int SetSelectedFont(HWND hwnd, LOGFONTW* lf);
+static void InitializeFont(HWND hwnd);
+
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
     WCHAR *buffer = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
@@ -260,6 +265,7 @@ static void ToggleStatusBar(HWND hwnd, BOOL visible) {
     }
     UpdateLayout(hwnd);
     UpdateStatusBar(hwnd);
+    SaveSetting((LPCWSTR)L"StatusBarVisible", (const BYTE*)&visible, sizeof(visible));
 }
 
 static void UpdateLayout(HWND hwnd) {
@@ -498,6 +504,30 @@ static INT_PTR CALLBACK GoToDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lP
     return FALSE;
 }
 
+static int SaveSetting(LPCWSTR label, const BYTE* data, DWORD size) {
+    HKEY hKey;
+    int ret = 1;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, (LPCWSTR)L"Software\\retropad\\Settings", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        if (RegSetValueExW(hKey, label, 0, REG_BINARY, data, size) == ERROR_SUCCESS) {
+            ret = 0;
+        }
+        RegCloseKey(hKey);
+    }
+    return ret;
+}
+
+static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size) {
+    HKEY hKey;
+    int ret = 1;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, (LPCWSTR)L"Software\\retropad\\Settings", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        if (RegQueryValueExW(hKey, label, 0, NULL, data, size) == ERROR_SUCCESS) {
+            ret = 0;
+        }
+        RegCloseKey(hKey);
+    }
+    return ret;
+}
+
 static void DoSelectFont(HWND hwnd) {
     LOGFONTW lf = {0};
     if (g_app.hFont) {
@@ -513,14 +543,30 @@ static void DoSelectFont(HWND hwnd) {
     cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
 
     if (ChooseFontW(&cf)) {
-        HFONT newFont = CreateFontIndirectW(&lf);
-        if (newFont) {
-            if (g_app.hFont) DeleteObject(g_app.hFont);
-            g_app.hFont = newFont;
-            ApplyFontToEdit(g_app.hwndEdit, g_app.hFont);
-            UpdateLayout(hwnd);
+        if (SetSelectedFont(hwnd, &lf) == 0) {
+            SaveSetting((LPCWSTR)L"Font", (const BYTE*)&lf, sizeof(LOGFONTW));
         }
     }
+}
+
+static void InitializeFont(HWND hwnd) {
+    LOGFONTW lf = { 0 };
+    DWORD size = sizeof(LOGFONTW);
+    if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, (LPDWORD)&size) == 0) {
+        SetSelectedFont(hwnd, &lf);
+    }
+}
+
+static int SetSelectedFont(HWND hwnd, LOGFONTW* lf) {
+    HFONT newFont = CreateFontIndirectW(lf);
+    if (newFont) {
+        if (g_app.hFont) DeleteObject(g_app.hFont);
+        g_app.hFont = newFont;
+        ApplyFontToEdit(g_app.hwndEdit, g_app.hFont);
+        UpdateLayout(hwnd);
+        return 0;
+    }
+    return 1;
 }
 
 static void InsertTimeDate(HWND hwnd) {
@@ -542,10 +588,10 @@ static void HandleFindReplace(LPFINDREPLACE lpfr) {
 
     g_app.findFlags = lpfr->Flags;
     if (lpfr->lpstrFindWhat && lpfr->lpstrFindWhat[0]) {
-        StringCchCopyW(g_app.findText, ARRAYSIZE(g_app.findText), lpfr->lpstrFindWhat);
+        StringCchCopyW((STRSAFE_LPWSTR)g_app.findText, ARRAYSIZE(g_app.findText), (STRSAFE_LPCWSTR)lpfr->lpstrFindWhat);
     }
     if (lpfr->lpstrReplaceWith) {
-        StringCchCopyW(g_app.replaceText, ARRAYSIZE(g_app.replaceText), lpfr->lpstrReplaceWith);
+        StringCchCopyW((STRSAFE_LPWSTR)g_app.replaceText, ARRAYSIZE(g_app.replaceText), (STRSAFE_LPCWSTR)lpfr->lpstrReplaceWith);
     }
 
     BOOL matchCase = (lpfr->Flags & FR_MATCHCASE) != 0;
@@ -654,7 +700,7 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         if (g_app.wordWrap) {
             MessageBoxW(hwnd, L"Go To is unavailable when Word Wrap is on.", APP_TITLE, MB_ICONINFORMATION);
         } else {
-            DialogBoxW(g_hInst, MAKEINTRESOURCE(IDD_GOTO), hwnd, GoToDlgProc);
+            DialogBoxW(g_hInst, (LPCWSTR)MAKEINTRESOURCE(IDD_GOTO), hwnd, GoToDlgProc);
         }
         break;
     case IDM_EDIT_SELECT_ALL:
@@ -679,7 +725,7 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         MessageBoxW(hwnd, L"No help file is available for retropad.", APP_TITLE, MB_ICONINFORMATION);
         break;
     case IDM_HELP_ABOUT:
-        DialogBoxW(g_hInst, MAKEINTRESOURCE(IDD_ABOUT), hwnd, AboutDlgProc);
+        DialogBoxW(g_hInst, (LPCWSTR)MAKEINTRESOURCE(IDD_ABOUT), hwnd, AboutDlgProc);
         break;
     }
 }
@@ -709,10 +755,13 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES };
         InitCommonControlsEx(&icc);
         CreateEditControl(hwnd);
-        ToggleStatusBar(hwnd, TRUE);
+        DWORD size = sizeof(BOOL);
+        LoadSetting((LPCWSTR)L"StatusBarVisible", (LPBYTE)&g_app.statusVisible, (LPDWORD) &size);
+        ToggleStatusBar(hwnd, g_app.statusVisible);
         UpdateTitle(hwnd);
         UpdateStatusBar(hwnd);
         DragAcceptFiles(hwnd, TRUE);
+        InitializeFont(hwnd);
         return 0;
     }
     case WM_SETFOCUS:
@@ -777,12 +826,12 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = MainWndProc;
     wc.hInstance = hInstance;
-    wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCE(IDI_RETROPAD));
+    wc.hIcon = LoadIconW(hInstance, (LPCWSTR)MAKEINTRESOURCE(IDI_RETROPAD));
     wc.hIconSm = wc.hIcon;
-    wc.hCursor = LoadCursorW(NULL, IDC_IBEAM);
+    wc.hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_IBEAM);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = L"RETROPAD_WINDOW";
-    wc.lpszMenuName = MAKEINTRESOURCE(IDC_RETROPAD);
+    wc.lpszMenuName = (LPCWSTR)MAKEINTRESOURCE(IDC_RETROPAD);
 
     if (!RegisterClassExW(&wc)) {
         MessageBoxW(NULL, L"Failed to register window class.", APP_TITLE, MB_ICONERROR);
@@ -801,7 +850,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
-    HACCEL accel = LoadAcceleratorsW(hInstance, MAKEINTRESOURCE(IDC_RETROPAD));
+    HACCEL accel = LoadAcceleratorsW(hInstance, (LPCWSTR)MAKEINTRESOURCE(IDC_RETROPAD));
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
