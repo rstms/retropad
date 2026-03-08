@@ -815,9 +815,10 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             UpdateTitle(hwnd);
             UpdateStatusBar(hwnd);
             return 0;
-        } else if (HIWORD(wParam) == EN_UPDATE && (HWND)lParam == g_app.hwndEdit) {
-            UpdateStatusBar(hwnd);
-            return 0;
+        }
+ else if (HIWORD(wParam) == EN_UPDATE && (HWND)lParam == g_app.hwndEdit) {
+     UpdateStatusBar(hwnd);
+     return 0;
         }
         HandleCommand(hwnd, wParam, lParam);
         return 0;
@@ -848,7 +849,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     g_app.encoding = ENC_UTF8;
     g_app.findFlags = FR_DOWN;
 
-    WNDCLASSEXW wc = {0};
+    WNDCLASSEXW wc = { 0 };
     wc.cbSize = sizeof(wc);
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = MainWndProc;
@@ -866,8 +867,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     }
 
     HWND hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE, WS_OVERLAPPEDWINDOW,
-                                CW_USEDEFAULT, CW_USEDEFAULT, DEFAULT_WIDTH, DEFAULT_HEIGHT,
-                                NULL, NULL, hInstance, NULL);
+        CW_USEDEFAULT, CW_USEDEFAULT, DEFAULT_WIDTH, DEFAULT_HEIGHT,
+        NULL, NULL, hInstance, NULL);
     if (!hwnd) {
         MessageBoxW(NULL, L"Failed to create main window.", APP_TITLE, MB_ICONERROR);
         return 0;
@@ -891,21 +892,28 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 }
 
 static void DoPageSetup(HWND hwnd) {
-    PAGESETUPDLG psd = {0};
+    PAGESETUPDLG psd = { 0 };
     psd.lStructSize = sizeof(PAGESETUPDLG);
     psd.hwndOwner = hwnd;
-    psd.Flags = PSD_RETURNDEFAULT;
-    psd.hDevMode = NULL;
-    psd.hDevNames = NULL;
-    psd.ptPaperSize.x = 0;
-    psd.ptPaperSize.y = 0;
-    PageSetupDlg(&psd);
-    SaveSetting((LPCWSTR)L"PageSetup", (const BYTE*)&psd, sizeof(psd));
+    if (PageSetupDlg(&psd)) {
+        SaveSetting((LPCWSTR)L"PageSetup", (const BYTE*)&psd, sizeof(psd));
+    }
 }
 
 static void DoPrint(HWND hwnd) {
-    PRINTDLG pd = {0};
-    pd.lStructSize = sizeof(PRINTDLG);
+
+    int length = GetWindowTextLengthW(g_app.hwndEdit);
+    if (length == 0) {
+        return;
+    }
+    WCHAR* buffer = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
+    if (!buffer) {
+        return;
+    }
+    GetWindowText(g_app.hwndEdit, buffer, length + 1);
+
+    PRINTDLGW pd = { 0 };
+    pd.lStructSize = sizeof(PRINTDLGW);
     pd.hwndOwner = hwnd;
     pd.Flags = PD_RETURNDC;
     pd.hDevMode = NULL;
@@ -916,6 +924,65 @@ static void DoPrint(HWND hwnd) {
     pd.nFromPage = 1;
     pd.nToPage = 100;
     if (PrintDlg(&pd)) {
-	DeleteDC(pd.hDC);
+        LOGFONTW lf = { 0 };
+        DWORD lfSize = sizeof(LOGFONTW);
+        HFONT oldFont = NULL;
+        HFONT printerFont = NULL;
+        if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, (LPDWORD)&lfSize) == 0) {
+            int printerDPI = GetDeviceCaps(pd.hDC, LOGPIXELSY);
+            /* scale font from screen to printer DPI */
+            lf.lfHeight = -MulDiv(-lf.lfHeight, printerDPI, 72);
+            printerFont = CreateFontIndirectW(&lf);
+            oldFont = SelectObject(pd.hDC, printerFont);
+        }
+        DOCINFO di = { 0 };
+        di.cbSize = sizeof(DOCINFO);
+        di.lpszDocName = L"Print job";
+        StartDoc(pd.hDC, &di);
+        int xpos = 0;
+        int ypos = 0;
+        TEXTMETRIC tm;
+        GetTextMetrics(pd.hDC, &tm);
+        int pageHeight = GetDeviceCaps(pd.hDC, VERTRES);
+        WCHAR* lineStart = buffer;
+        WCHAR* lineEnd;
+        BOOL inPage = FALSE;
+        while (*lineStart != 0) {
+            if (!inPage) {
+                StartPage(pd.hDC);
+                inPage = TRUE;
+                ypos = 0;
+            }
+            lineEnd = wcsstr(lineStart, L"\r\n");
+            if (lineEnd) {
+                *lineEnd = 0;
+            }
+            TextOut(pd.hDC, xpos, ypos, lineStart, lineEnd - lineStart);
+            ypos += tm.tmHeight;
+            if ((ypos + tm.tmHeight) >= pageHeight) {
+                if (inPage) {
+                    EndPage(pd.hDC);
+                    inPage = FALSE;
+                }
+            }
+            if (lineEnd) {
+                lineStart = lineEnd + 2;
+            }
+            else {
+                break;
+            }
+        }
+        if (inPage) {
+            EndPage(pd.hDC);
+        }
+        EndDoc(pd.hDC);
+        if (oldFont) {
+            SelectObject(pd.hDC, oldFont);
+        }
+        if (printerFont) {
+            DeleteObject(printerFont);
+        }
+    	DeleteDC(pd.hDC);
     }
+    HeapFree(GetProcessHeap(), 0, buffer);
 }
