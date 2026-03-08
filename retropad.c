@@ -66,6 +66,8 @@ static int SaveSetting(LPCWSTR label, const BYTE* data, DWORD size);
 static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size);
 static int SetSelectedFont(HWND hwnd, LOGFONTW* lf);
 static void InitializeFont(HWND hwnd);
+static void DoPageSetup(HWND hwnd);
+static void DoPrint(HWND hwnd);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -687,8 +689,11 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     case IDM_FILE_SAVE_AS:
         DoFileSave(hwnd, TRUE);
         break;
+    case IDM_FILE_PAGE_SETUP:
+	DoPageSetup(hwnd);
+	break;
     case IDM_FILE_PRINT:
-        MessageBoxW(hwnd, L"Printing is not implemented in retropad.", APP_TITLE, MB_ICONINFORMATION);
+	DoPrint(hwnd);
         break;
     case IDM_FILE_EXIT:
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
@@ -883,4 +888,34 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     }
 
     return (int)msg.wParam;
+}
+
+static void DoPageSetup(HWND hwnd) {
+    PAGESETUPDLG psd = {0};
+    psd.lStructSize = sizeof(PAGESETUPDLG);
+    psd.hwndOwner = hwnd;
+    psd.Flags = PSD_RETURNDEFAULT;
+    psd.hDevMode = NULL;
+    psd.hDevNames = NULL;
+    psd.ptPaperSize.x = 0;
+    psd.ptPaperSize.y = 0;
+    PageSetupDlg(&psd);
+    SaveSetting((LPCWSTR)L"PageSetup", (const BYTE*)&psd, sizeof(psd));
+}
+
+static void DoPrint(HWND hwnd) {
+    PRINTDLG pd = {0};
+    pd.lStructSize = sizeof(PRINTDLG);
+    pd.hwndOwner = hwnd;
+    pd.Flags = PD_RETURNDC;
+    pd.hDevMode = NULL;
+    pd.hDevNames = NULL;
+    pd.nMinPage = 1;
+    pd.nMaxPage = 100;
+    pd.nCopies = 1;
+    pd.nFromPage = 1;
+    pd.nToPage = 100;
+    if (PrintDlg(&pd)) {
+	DeleteDC(pd.hDC);
+    }
 }
