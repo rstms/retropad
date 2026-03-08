@@ -1,6 +1,10 @@
 // retropad - a Petzold-style Win32 notepad clone implemented in mostly plain C.
 // Keeps the classic menus/accelerators, word wrap, status bar, find/replace,
 // font picker, and basic file load/save with BOM detection.
+
+#include <limits.h>
+#include <wchar.h>
+
 #include <windows.h>
 #include <commdlg.h>
 #include <commctrl.h>
@@ -81,7 +85,7 @@ static BOOL FindInEdit(HWND hwndEdit, const WCHAR *needle, BOOL matchCase, BOOL 
     if (!GetEditText(hwndEdit, &text, &len)) return FALSE;
 
     size_t needleLen = wcslen(needle);
-    WCHAR *haystack = text;
+    WCHAR *haystack = NULL;
     WCHAR *needleBuf = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, (needleLen + 1) * sizeof(WCHAR));
     if (!needleBuf) {
         HeapFree(GetProcessHeap(), 0, text);
@@ -90,8 +94,18 @@ static BOOL FindInEdit(HWND hwndEdit, const WCHAR *needle, BOOL matchCase, BOOL 
     StringCchCopyW(needleBuf, needleLen + 1, needle);
 
     if (!matchCase) {
+        haystack = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (len+1) * sizeof(WCHAR));
+        if (!haystack) {
+            HeapFree(GetProcessHeap(), 0, text);
+            HeapFree(GetProcessHeap(), 0, needleBuf);
+            return FALSE;
+        }
+        StringCchCopyW(haystack, len + 1, text);
         CharLowerBuffW(haystack, len);
         CharLowerBuffW(needleBuf, (DWORD)needleLen);
+    }
+    else {
+        haystack = text;
     }
 
     if (startPos > (DWORD)len) startPos = (DWORD)len;
@@ -129,7 +143,9 @@ static BOOL FindInEdit(HWND hwndEdit, const WCHAR *needle, BOOL matchCase, BOOL 
         *outEnd = pos + (DWORD)needleLen;
         result = TRUE;
     }
-
+    if (!matchCase && haystack != text) {
+        HeapFree(GetProcessHeap(), 0, haystack);
+    }
     HeapFree(GetProcessHeap(), 0, text);
     HeapFree(GetProcessHeap(), 0, needleBuf);
     return result;
@@ -175,6 +191,13 @@ static int ReplaceAllOccurrences(HWND hwndEdit, const WCHAR *needle, const WCHAR
     }
 
     size_t newLen = (size_t)len - (size_t)count * needleLen + (size_t)count * replLen;
+    if (newLen > INT_MAX / sizeof(WCHAR)) {
+        HeapFree(GetProcessHeap(), 0, text);
+        HeapFree(GetProcessHeap(), 0, searchBuf);
+        HeapFree(GetProcessHeap(), 0, needleBuf);
+        MessageBoxW(NULL, L"Replacement text too large.", L"retropad", MB_ICONERROR);
+        return 0;
+    }
     WCHAR *result = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, (newLen + 1) * sizeof(WCHAR));
     if (!result) {
         HeapFree(GetProcessHeap(), 0, text);
@@ -219,7 +242,7 @@ static int ReplaceAllOccurrences(HWND hwndEdit, const WCHAR *needle, const WCHAR
 static void UpdateTitle(HWND hwnd) {
     WCHAR name[MAX_PATH_BUFFER];
     if (g_app.currentPath[0]) {
-        WCHAR *fileName = wcsrchr(g_app.currentPath, L'\\');
+        WCHAR *fileName = (WCHAR *)wcsrchr(g_app.currentPath, L'\\');
         fileName = fileName ? fileName + 1 : g_app.currentPath;
         StringCchCopyW(name, MAX_PATH_BUFFER, fileName);
     } else {
@@ -664,7 +687,6 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     case IDM_FILE_SAVE_AS:
         DoFileSave(hwnd, TRUE);
         break;
-    case IDM_FILE_PAGE_SETUP:
     case IDM_FILE_PRINT:
         MessageBoxW(hwnd, L"Printing is not implemented in retropad.", APP_TITLE, MB_ICONINFORMATION);
         break;

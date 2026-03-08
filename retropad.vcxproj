@@ -135,6 +135,9 @@
   <ItemGroup>
     <ResourceCompile Include="retropad.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\retropad.ico" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

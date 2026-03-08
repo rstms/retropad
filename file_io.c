@@ -1,4 +1,8 @@
 // Text file load/save helpers with simple BOM detection for retropad.
+
+#include <limits.h>
+#include <wchar.h>
+
 #include "file_io.h"
 #include <commdlg.h>
 #include <strsafe.h>
@@ -237,7 +241,7 @@ BOOL SaveFileDialog(HWND owner, WCHAR *pathOut, DWORD pathLen) {
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
     ofn.lpstrDefExt = L"txt";
     if (pathOut[0] == L'\0') {
-        StringCchCopyW(pathOut, pathLen, L"*.txt");
+        StringCchCopyW(pathOut, pathLen, L"untitled.txt");
     }
     return GetSaveFileNameW(&ofn);
 }
