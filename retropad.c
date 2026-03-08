@@ -68,6 +68,7 @@ static int SetSelectedFont(HWND hwnd, LOGFONTW* lf);
 static void InitializeFont(HWND hwnd);
 static void DoPageSetup(HWND hwnd);
 static void DoPrint(HWND hwnd);
+static void DoConvertCRLF(HWND hwnd);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -743,6 +744,9 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     case IDM_FORMAT_FONT:
         DoSelectFont(hwnd);
         break;
+    case IDM_FORMAT_CRLF:
+        DoConvertCRLF(hwnd);
+        break;
 
     case IDM_VIEW_STATUS_BAR:
         ToggleStatusBar(hwnd, !g_app.statusVisible);
@@ -908,6 +912,7 @@ static void DoPrint(HWND hwnd) {
     }
     WCHAR* buffer = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
     if (!buffer) {
+        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
         return;
     }
     GetWindowText(g_app.hwndEdit, buffer, length + 1);
@@ -985,4 +990,45 @@ static void DoPrint(HWND hwnd) {
     	DeleteDC(pd.hDC);
     }
     HeapFree(GetProcessHeap(), 0, buffer);
+}
+
+static void DoConvertCRLF(HWND hwnd) {
+    int i, j;
+
+    int length = GetWindowTextLengthW(g_app.hwndEdit);
+    if (length == 0) {
+        return;
+    }
+    WCHAR* ibuf = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
+    if (!ibuf) {
+        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
+        return;
+    }
+    GetWindowText(g_app.hwndEdit, buffer, length + 1);
+
+    /* count newlines */
+    int lines = 0;
+    for(i=0; i<length; i++) {
+	if(ibuf[i] == L"\n") {
+	    ++lines;
+	}
+    }
+    WCHAR* obuf = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + lines + 1) * sizeof(WCHAR));
+    if (!obuf) {
+        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
+	HeapFree(GetProcessHeap(), 0, ibuf);
+        return;
+    }
+    for(i=0,j=0; i<length; i++) {
+	rune = ibuf[i];
+	if (rune == L"\n") {
+	    obuf[j++] = L"\r";
+	}
+	obuf[j++] = rune;
+    }
+    obuf[j]=0;
+    SetWindowText(g_app.hwndEdit, obuf, length+lines+1);
+
+    HeapFree(GetProcessHeap(), 0, ibuf);
+    HeapFree(GetProcessHeap(), 0, obuf);
 }

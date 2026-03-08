@@ -38,6 +38,7 @@ BEGIN
     BEGIN
         MENUITEM "&Word Wrap",              IDM_FORMAT_WORD_WRAP
         MENUITEM "&Font...",                IDM_FORMAT_FONT
+        MENUITEM "&Convert LF to CRLF",	    IDM_FORMAT_CRLF
     END
     POPUP "&View"
     BEGIN

@@ -28,6 +28,7 @@
 
 #define IDM_FORMAT_WORD_WRAP    40030
 #define IDM_FORMAT_FONT         40031
+#define IDM_FORMAT_CRLF		40032
 
 #define IDM_VIEW_STATUS_BAR     40040
 
