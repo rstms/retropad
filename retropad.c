@@ -1004,30 +1004,34 @@ static void DoConvertCRLF(HWND hwnd) {
         MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
         return;
     }
-    GetWindowText(g_app.hwndEdit, buffer, length + 1);
+    GetWindowTextW(g_app.hwndEdit, ibuf, length + 1);
 
     /* count newlines */
     int lines = 0;
     for(i=0; i<length; i++) {
-	if(ibuf[i] == L"\n") {
-	    ++lines;
-	}
+	    if(ibuf[i] == (WCHAR)'\n') {
+	        ++lines;
+	    }
     }
+
     WCHAR* obuf = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + lines + 1) * sizeof(WCHAR));
     if (!obuf) {
         MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
-	HeapFree(GetProcessHeap(), 0, ibuf);
+	    HeapFree(GetProcessHeap(), 0, ibuf);
         return;
     }
+    WCHAR rune;
+    WCHAR lastRune = 0;
     for(i=0,j=0; i<length; i++) {
-	rune = ibuf[i];
-	if (rune == L"\n") {
-	    obuf[j++] = L"\r";
-	}
-	obuf[j++] = rune;
+	    rune = ibuf[i];
+	    if (rune == (WCHAR)'\n' && lastRune != (WCHAR)'\r') {
+	        obuf[j++] = (WCHAR)'\r';
+	    }
+	    obuf[j++] = rune;
+        lastRune = rune;
     }
     obuf[j]=0;
-    SetWindowText(g_app.hwndEdit, obuf, length+lines+1);
+    SetWindowTextW(g_app.hwndEdit, (LPCWSTR)obuf);
 
     HeapFree(GetProcessHeap(), 0, ibuf);
     HeapFree(GetProcessHeap(), 0, obuf);
