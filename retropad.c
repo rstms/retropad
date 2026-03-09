@@ -18,6 +18,7 @@
 #define MAX_PATH_BUFFER 1024
 #define DEFAULT_WIDTH  640
 #define DEFAULT_HEIGHT 480
+#define DEFAULT_MARGINS 250
 
 typedef struct AppState {
     HWND hwndMain;
@@ -62,13 +63,15 @@ static BOOL LoadDocumentFromPath(HWND hwnd, LPCWSTR path);
 static INT_PTR CALLBACK GoToDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lParam);
 static INT_PTR CALLBACK AboutDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lParam);
 
-static int SaveSetting(LPCWSTR label, const BYTE* data, DWORD size);
-static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size);
+static BOOL SaveSetting(LPCWSTR label, const BYTE *data, DWORD size);
+static BOOL LoadSetting(LPCWSTR label, BYTE *data, DWORD size);
 static int SetSelectedFont(HWND hwnd, LOGFONTW* lf);
 static void InitializeFont(HWND hwnd);
 static void DoPageSetup(HWND hwnd);
 static void DoPrint(HWND hwnd);
 static void DoConvertCRLF(HWND hwnd);
+static BOOL AddFinalCRLF(WCHAR** buffer, int* len);
+static BOOL CheckDialogMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -530,24 +533,27 @@ static INT_PTR CALLBACK GoToDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lP
     return FALSE;
 }
 
-static int SaveSetting(LPCWSTR label, const BYTE* data, DWORD size) {
+static BOOL SaveSetting(LPCWSTR label, const BYTE* data, DWORD size) {
     HKEY hKey;
-    int ret = 1;
+    BOOL ret = FALSE;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, (LPCWSTR)L"Software\\retropad\\Settings", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         if (RegSetValueExW(hKey, label, 0, REG_BINARY, data, size) == ERROR_SUCCESS) {
-            ret = 0;
+            ret = TRUE;
         }
         RegCloseKey(hKey);
     }
     return ret;
 }
 
-static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size) {
+static BOOL LoadSetting(LPCWSTR label, BYTE *data, DWORD size) {
     HKEY hKey;
-    int ret = 1;
+    BOOL ret = FALSE;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, (LPCWSTR)L"Software\\retropad\\Settings", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        if (RegQueryValueExW(hKey, label, 0, NULL, data, size) == ERROR_SUCCESS) {
-            ret = 0;
+        DWORD valueSize = size;
+        if (RegQueryValueExW(hKey, label, 0, NULL, data, &valueSize) == ERROR_SUCCESS) {
+            if (valueSize == size) {
+                ret = TRUE;
+            }
         }
         RegCloseKey(hKey);
     }
@@ -555,14 +561,15 @@ static int LoadSetting(LPCWSTR label, LPBYTE data, LPDWORD size) {
 }
 
 static void DoSelectFont(HWND hwnd) {
-    LOGFONTW lf = {0};
+    LOGFONTW lf = { 0 };
     if (g_app.hFont) {
         GetObjectW(g_app.hFont, sizeof(LOGFONTW), &lf);
-    } else {
+    }
+    else {
         SystemParametersInfoW(SPI_GETICONTITLELOGFONT, sizeof(LOGFONTW), &lf, 0);
     }
 
-    CHOOSEFONTW cf = {0};
+    CHOOSEFONTW cf = { 0 };
     cf.lStructSize = sizeof(cf);
     cf.hwndOwner = hwnd;
     cf.lpLogFont = &lf;
@@ -576,9 +583,8 @@ static void DoSelectFont(HWND hwnd) {
 }
 
 static void InitializeFont(HWND hwnd) {
-    LOGFONTW lf = { 0 };
-    DWORD size = sizeof(LOGFONTW);
-    if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, (LPDWORD)&size) == 0) {
+    LOGFONTW lf;
+    if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, sizeof(LOGFONTW))) {
         SetSelectedFont(hwnd, &lf);
     }
 }
@@ -631,10 +637,12 @@ static void HandleFindReplace(LPFINDREPLACE lpfr) {
         if (FindInEdit(g_app.hwndEdit, g_app.findText, matchCase, down, searchStart, &outStart, &outEnd)) {
             SendMessageW(g_app.hwndEdit, EM_SETSEL, outStart, outEnd);
             SendMessageW(g_app.hwndEdit, EM_SCROLLCARET, 0, 0);
-        } else {
+        }
+        else {
             MessageBoxW(g_app.hwndMain, L"Cannot find the text.", APP_TITLE, MB_ICONINFORMATION);
         }
-    } else if (lpfr->Flags & FR_REPLACE) {
+    }
+    else if (lpfr->Flags & FR_REPLACE) {
         DWORD start = 0, end = 0;
         SendMessageW(g_app.hwndEdit, EM_GETSEL, (WPARAM)&start, (LPARAM)&end);
         DWORD outStart = 0, outEnd = 0;
@@ -644,14 +652,19 @@ static void HandleFindReplace(LPFINDREPLACE lpfr) {
             SendMessageW(g_app.hwndEdit, EM_SCROLLCARET, 0, 0);
             g_app.modified = TRUE;
             UpdateTitle(g_app.hwndMain);
-        } else {
+        }
+        else {
             MessageBoxW(g_app.hwndMain, L"Cannot find the text.", APP_TITLE, MB_ICONINFORMATION);
         }
-    } else if (lpfr->Flags & FR_REPLACEALL) {
+    }
+    else if (lpfr->Flags & FR_REPLACEALL) {
         int replaced = ReplaceAllOccurrences(g_app.hwndEdit, g_app.findText, g_app.replaceText, matchCase);
         WCHAR msg[64];
         StringCchPrintfW(msg, ARRAYSIZE(msg), L"Replaced %d occurrence%s.", replaced, replaced == 1 ? L"" : L"s");
         MessageBoxW(g_app.hwndMain, msg, APP_TITLE, MB_OK | MB_ICONINFORMATION);
+        if (g_app.hReplaceDlg) {
+            SetForegroundWindow(g_app.hReplaceDlg);
+        }
     }
 }
 
@@ -776,6 +789,7 @@ static INT_PTR CALLBACK AboutDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM l
 }
 
 static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
     if (msg == g_findMsg) {
         HandleFindReplace((LPFINDREPLACE)lParam);
         return 0;
@@ -786,8 +800,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES };
         InitCommonControlsEx(&icc);
         CreateEditControl(hwnd);
-        DWORD size = sizeof(BOOL);
-        LoadSetting((LPCWSTR)L"StatusBarVisible", (LPBYTE)&g_app.statusVisible, (LPDWORD) &size);
+        LoadSetting((LPCWSTR)L"StatusBarVisible", (LPBYTE)&g_app.statusVisible, sizeof(BOOL));
         ToggleStatusBar(hwnd, g_app.statusVisible);
         UpdateTitle(hwnd);
         UpdateStatusBar(hwnd);
@@ -820,9 +833,9 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             UpdateStatusBar(hwnd);
             return 0;
         }
- else if (HIWORD(wParam) == EN_UPDATE && (HWND)lParam == g_app.hwndEdit) {
-     UpdateStatusBar(hwnd);
-     return 0;
+        else if (HIWORD(wParam) == EN_UPDATE && (HWND)lParam == g_app.hwndEdit) {
+            UpdateStatusBar(hwnd);
+            return 0;
         }
         HandleCommand(hwnd, wParam, lParam);
         return 0;
@@ -887,6 +900,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
         if (!accel || !TranslateAcceleratorW(hwnd, accel, &msg)) {
+            if (g_app.hFindDlg && IsDialogMessageW(g_app.hFindDlg, &msg)) continue;
+            if (g_app.hReplaceDlg && IsDialogMessageW(g_app.hReplaceDlg, &msg)) continue;
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -899,23 +914,87 @@ static void DoPageSetup(HWND hwnd) {
     PAGESETUPDLG psd = { 0 };
     psd.lStructSize = sizeof(PAGESETUPDLG);
     psd.hwndOwner = hwnd;
-    if (PageSetupDlg(&psd)) {
-        SaveSetting((LPCWSTR)L"PageSetup", (const BYTE*)&psd, sizeof(psd));
+    psd.Flags = PSD_MARGINS | PSD_NONETWORKBUTTON;
+
+    if (!LoadSetting((LPCWSTR)L"Margins", (BYTE*)&psd.rtMargin, sizeof(RECT))) {
+        psd.rtMargin.top = DEFAULT_MARGINS;
+        psd.rtMargin.left = DEFAULT_MARGINS;
+        psd.rtMargin.right = DEFAULT_MARGINS;
+        psd.rtMargin.bottom = DEFAULT_MARGINS;
     }
+
+    HGLOBAL hDevMode = GlobalAlloc(GHND, sizeof(DEVMODEW));
+    if (hDevMode) {
+        DEVMODEW *pDevMode = (DEVMODEW *)GlobalLock(hDevMode);
+        if (pDevMode) {
+            if (LoadSetting((LPCWSTR)L"DevMode", (BYTE*)pDevMode, sizeof(DEVMODEW))) {
+                psd.hDevMode = hDevMode;
+            }
+            GlobalUnlock(hDevMode);
+        }
+    }
+
+    HGLOBAL hDevNames = GlobalAlloc(GHND, sizeof(DEVNAMES));
+    if (hDevNames) {
+        DEVNAMES* pDevNames = (DEVNAMES*)GlobalLock(hDevNames);
+        if (pDevNames) {
+            if (LoadSetting((LPCWSTR)L"DevNames", (BYTE*)pDevNames, sizeof(DEVNAMES))) {
+                psd.hDevNames = hDevNames;
+            }
+            GlobalUnlock(hDevNames);
+        }
+    }
+
+    if (PageSetupDlg(&psd)) {
+        SaveSetting((LPCWSTR)L"Margins", (const BYTE*)&psd.rtMargin, sizeof(RECT));
+        if (psd.hDevMode) {
+            DEVMODEW* pDevMode = (DEVMODEW*)GlobalLock(psd.hDevMode);
+            if (pDevMode) {
+                SaveSetting((LPCWSTR)L"DevMode", (const BYTE*)pDevMode, sizeof(DEVMODEW));
+                GlobalUnlock(psd.hDevMode);
+            }
+            GlobalFree(psd.hDevMode);
+        }
+        if (psd.hDevNames) {
+            DEVNAMES* pDevNames = (DEVNAMES*)GlobalLock(psd.hDevNames);
+            if (pDevNames) {
+                SaveSetting((LPCWSTR)L"DevNames", (const BYTE*)pDevNames, sizeof(DEVNAMES));
+                GlobalUnlock(psd.hDevNames);
+            }
+            GlobalFree(psd.hDevNames);
+        }
+    }
+
+    if (hDevMode) {
+        GlobalFree(hDevMode);
+    }
+    if (hDevNames) {
+        GlobalFree(hDevNames);
+    }
+}
+
+static BOOL AddFinalCRLF(WCHAR** buffer, int* len) {
+    if (*len < 2 || !((*buffer)[*len - 2] == (WCHAR)'\r' && (*buffer)[*len - 1] == (WCHAR)'\n')) {
+        *len += 2;
+        *buffer = HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (void*)*buffer, (*len + 1) * sizeof(WCHAR));
+        if (*buffer) {
+            (*buffer)[*len - 2] = (WCHAR)'\r';
+            (*buffer)[*len - 1] = (WCHAR)'\n';
+        }
+        else {
+            MessageBoxW(g_app.hwndMain, (LPCWSTR)L"Memory allocation failed.", (LPCWSTR)L"retropad", MB_ICONERROR);
+            return FALSE;
+        }
+    }
+    return TRUE;
 }
 
 static void DoPrint(HWND hwnd) {
 
-    int length = GetWindowTextLengthW(g_app.hwndEdit);
-    if (length == 0) {
-        return;
-    }
-    WCHAR* buffer = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
-    if (!buffer) {
-        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
-        return;
-    }
-    GetWindowText(g_app.hwndEdit, buffer, length + 1);
+    WCHAR* buffer = NULL;
+    int len = 0;
+    if (!GetEditText(g_app.hwndEdit, &buffer, &len)) return;
+    if (!AddFinalCRLF(&buffer, &len)) return;
 
     PRINTDLGW pd = { 0 };
     pd.lStructSize = sizeof(PRINTDLGW);
@@ -928,12 +1007,37 @@ static void DoPrint(HWND hwnd) {
     pd.nCopies = 1;
     pd.nFromPage = 1;
     pd.nToPage = 100;
+
+    RECT margin = { DEFAULT_MARGINS, DEFAULT_MARGINS, DEFAULT_MARGINS, DEFAULT_MARGINS };
+    LoadSetting((LPCWSTR)L"Margins", (BYTE*)&margin, sizeof(RECT));
+
+    HGLOBAL hDevMode = GlobalAlloc(GHND, sizeof(DEVMODEW));
+    if (hDevMode) {
+        DEVMODEW *pDevMode = (DEVMODEW*)GlobalLock(hDevMode);
+        if (pDevMode) {
+            if (LoadSetting((LPCWSTR)L"DevMode", (BYTE*)pDevMode, sizeof(DEVMODEW))) {
+                pd.hDevMode = hDevMode;
+            }
+        }
+        GlobalUnlock(hDevMode);
+    }
+
+    HGLOBAL hDevNames = GlobalAlloc(GHND, sizeof(DEVNAMES));
+    if (hDevNames) {
+        DEVNAMES *pDevNames = (DEVNAMES *)GlobalLock(hDevNames);
+        if (pDevNames) {
+            if (LoadSetting((LPCWSTR)L"DevNames", (BYTE*)pDevNames, sizeof(DEVNAMES))) {
+                pd.hDevNames = hDevNames;
+            }
+        }
+        GlobalUnlock(hDevNames);
+    }
+
     if (PrintDlg(&pd)) {
         LOGFONTW lf = { 0 };
-        DWORD lfSize = sizeof(LOGFONTW);
         HFONT oldFont = NULL;
         HFONT printerFont = NULL;
-        if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, (LPDWORD)&lfSize) == 0) {
+        if (LoadSetting((LPCWSTR)L"Font", (LPBYTE)&lf, sizeof(LOGFONTW))) {
             int printerDPI = GetDeviceCaps(pd.hDC, LOGPIXELSY);
             /* scale font from screen to printer DPI */
             lf.lfHeight = -MulDiv(-lf.lfHeight, printerDPI, 72);
@@ -942,10 +1046,21 @@ static void DoPrint(HWND hwnd) {
         }
         DOCINFO di = { 0 };
         di.cbSize = sizeof(DOCINFO);
-        di.lpszDocName = L"Print job";
+        di.lpszDocName = L"retropad print";
+
+        int pixelWidth = GetDeviceCaps(pd.hDC, HORZRES);
+        int pixelHeight = GetDeviceCaps(pd.hDC, VERTRES);
+        int xPixelsPerInch = GetDeviceCaps(pd.hDC, LOGPIXELSX);
+        int yPixelsPerInch = GetDeviceCaps(pd.hDC, LOGPIXELSY);
+
+        int leftMargin = MulDiv(margin.left, yPixelsPerInch, 1000);
+        int topMargin = MulDiv(margin.top, xPixelsPerInch, 1000);
+        int rightMargin = pixelWidth - MulDiv(margin.right, xPixelsPerInch, 1000);
+        int bottomMargin = pixelHeight - MulDiv(margin.bottom, yPixelsPerInch, 1000);
+
         StartDoc(pd.hDC, &di);
-        int xpos = 0;
-        int ypos = 0;
+        int xpos = leftMargin;
+        int ypos = topMargin;
         TEXTMETRIC tm;
         GetTextMetrics(pd.hDC, &tm);
         int pageHeight = GetDeviceCaps(pd.hDC, VERTRES);
@@ -956,7 +1071,8 @@ static void DoPrint(HWND hwnd) {
             if (!inPage) {
                 StartPage(pd.hDC);
                 inPage = TRUE;
-                ypos = 0;
+                ypos = topMargin;
+                ExcludeClipRect(pd.hDC, rightMargin, 0, pixelWidth, pixelHeight);
             }
             lineEnd = wcsstr(lineStart, L"\r\n");
             if (lineEnd) {
@@ -964,7 +1080,7 @@ static void DoPrint(HWND hwnd) {
             }
             TextOut(pd.hDC, xpos, ypos, lineStart, lineEnd - lineStart);
             ypos += tm.tmHeight;
-            if ((ypos + tm.tmHeight) >= pageHeight) {
+            if ((ypos + tm.tmHeight) >= bottomMargin) {
                 if (inPage) {
                     EndPage(pd.hDC);
                     inPage = FALSE;
@@ -990,6 +1106,12 @@ static void DoPrint(HWND hwnd) {
     	DeleteDC(pd.hDC);
     }
     HeapFree(GetProcessHeap(), 0, buffer);
+    if (hDevMode) {
+        GlobalFree(hDevMode);
+    }
+    if (hDevNames) {
+        GlobalFree(hDevNames);
+    }
 }
 
 static void DoConvertCRLF(HWND hwnd) {
