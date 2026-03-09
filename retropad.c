@@ -71,7 +71,6 @@ static void DoPageSetup(HWND hwnd);
 static void DoPrint(HWND hwnd);
 static void DoConvertCRLF(HWND hwnd);
 static BOOL AddFinalCRLF(WCHAR** buffer, int* len);
-static BOOL CheckDialogMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -1063,7 +1062,6 @@ static void DoPrint(HWND hwnd) {
         int ypos = topMargin;
         TEXTMETRIC tm;
         GetTextMetrics(pd.hDC, &tm);
-        int pageHeight = GetDeviceCaps(pd.hDC, VERTRES);
         WCHAR* lineStart = buffer;
         WCHAR* lineEnd;
         BOOL inPage = FALSE;
