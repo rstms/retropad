@@ -30,6 +30,7 @@ typedef struct AppState {
     BOOL statusVisible;
     BOOL statusBeforeWrap;
     BOOL modified;
+    BOOL convertCRLF;
     TextEncoding encoding;
     FINDREPLACEW find;
     HWND hFindDlg;
@@ -71,6 +72,9 @@ static void DoPageSetup(HWND hwnd);
 static void DoPrint(HWND hwnd);
 static void DoConvertCRLF(HWND hwnd);
 static BOOL AddFinalCRLF(WCHAR** buffer, int* len);
+static LPCWSTR StripQuotes(LPWSTR path);
+static void DoRegisterExtension(HWND hwnd);
+static void ToggleCRLF(HWND hwnd, BOOL visible);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -296,6 +300,11 @@ static void ToggleStatusBar(HWND hwnd, BOOL visible) {
     SaveSetting((LPCWSTR)L"StatusBarVisible", (const BYTE*)&visible, sizeof(visible));
 }
 
+static void ToggleCRLF(HWND hwnd, BOOL visible) {
+    g_app.convertCRLF = visible;
+    SaveSetting((LPCWSTR)L"ConvertCRLF", (const BYTE*)&visible, sizeof(visible));
+}
+
 static void UpdateLayout(HWND hwnd) {
     RECT rc;
     GetClientRect(hwnd, &rc);
@@ -327,7 +336,22 @@ static BOOL PromptSaveChanges(HWND hwnd) {
     return res == IDNO;
 }
 
+static LPCWSTR StripQuotes(LPWSTR path) {
+
+    if (path[0] == (WCHAR)'"') {
+        ++path;
+    }
+    int len = wcslen(path);
+    if (path[len - 1] == (WCHAR)'"') {
+        path[len - 1] = 0;
+    }
+    return path;
+}
+
 static BOOL LoadDocumentFromPath(HWND hwnd, LPCWSTR path) {
+
+    path = StripQuotes((LPWSTR)path);
+
     WCHAR *text = NULL;
     TextEncoding enc = ENC_UTF8;
     if (!LoadTextFile(hwnd, path, &text, NULL, &enc)) {
@@ -335,6 +359,12 @@ static BOOL LoadDocumentFromPath(HWND hwnd, LPCWSTR path) {
     }
 
     SetWindowTextW(g_app.hwndEdit, text);
+
+    // optionally convert LF to CRLF 
+    if (g_app.convertCRLF && wcsstr(text, L"\n") && !wcsstr(text, L"\r\n")) {
+        DoConvertCRLF(hwnd);
+    }
+
     HeapFree(GetProcessHeap(), 0, text);
     StringCchCopyW(g_app.currentPath, ARRAYSIZE(g_app.currentPath), path);
     g_app.encoding = enc;
@@ -416,11 +446,11 @@ static void SetWordWrap(HWND hwnd, BOOL enabled) {
     if (enabled) {
         g_app.statusBeforeWrap = g_app.statusVisible;
         ToggleStatusBar(hwnd, FALSE);
-        EnableMenuItem(GetMenu(hwnd), IDM_VIEW_STATUS_BAR, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(GetMenu(hwnd), IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | MF_GRAYED);
         EnableMenuItem(GetMenu(hwnd), IDM_EDIT_GOTO, MF_BYCOMMAND | MF_GRAYED);
     } else {
         ToggleStatusBar(hwnd, g_app.statusBeforeWrap);
-        EnableMenuItem(GetMenu(hwnd), IDM_VIEW_STATUS_BAR, MF_BYCOMMAND | MF_ENABLED);
+        EnableMenuItem(GetMenu(hwnd), IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | MF_ENABLED);
         EnableMenuItem(GetMenu(hwnd), IDM_EDIT_GOTO, MF_BYCOMMAND | MF_ENABLED);
     }
     UpdateTitle(hwnd);
@@ -673,15 +703,17 @@ static void UpdateMenuStates(HWND hwnd) {
 
     UINT wrapState = g_app.wordWrap ? MF_CHECKED : MF_UNCHECKED;
     UINT statusState = g_app.statusVisible ? MF_CHECKED : MF_UNCHECKED;
+    UINT crlfState = g_app.convertCRLF ? MF_CHECKED : MF_UNCHECKED;
     CheckMenuItem(menu, IDM_FORMAT_WORD_WRAP, MF_BYCOMMAND | wrapState);
-    CheckMenuItem(menu, IDM_VIEW_STATUS_BAR, MF_BYCOMMAND | statusState);
+    CheckMenuItem(menu, IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | statusState);
+    CheckMenuItem(menu, IDM_OPTIONS_CONVERT_CRLF, MF_BYCOMMAND | crlfState);
 
     BOOL canGoTo = !g_app.wordWrap;
     EnableMenuItem(menu, IDM_EDIT_GOTO, MF_BYCOMMAND | (canGoTo ? MF_ENABLED : MF_GRAYED));
     if (g_app.wordWrap) {
-        EnableMenuItem(menu, IDM_VIEW_STATUS_BAR, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(menu, IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | MF_GRAYED);
     } else {
-        EnableMenuItem(menu, IDM_VIEW_STATUS_BAR, MF_BYCOMMAND | MF_ENABLED);
+        EnableMenuItem(menu, IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | MF_ENABLED);
     }
 
     BOOL modified = (SendMessageW(g_app.hwndEdit, EM_GETMODIFY, 0, 0) != 0);
@@ -756,12 +788,17 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     case IDM_FORMAT_FONT:
         DoSelectFont(hwnd);
         break;
-    case IDM_FORMAT_CRLF:
-        DoConvertCRLF(hwnd);
+
+    case IDM_OPTIONS_STATUS_BAR:
+        ToggleStatusBar(hwnd, !g_app.statusVisible);
         break;
 
-    case IDM_VIEW_STATUS_BAR:
-        ToggleStatusBar(hwnd, !g_app.statusVisible);
+    case IDM_OPTIONS_CONVERT_CRLF:
+        ToggleCRLF(hwnd, !g_app.convertCRLF);
+        break;
+
+    case IDM_OPTIONS_REGISTER_EXTENSION:
+        DoRegisterExtension(hwnd);
         break;
 
     case IDM_HELP_VIEW_HELP:
@@ -800,6 +837,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
         InitCommonControlsEx(&icc);
         CreateEditControl(hwnd);
         LoadSetting((LPCWSTR)L"StatusBarVisible", (LPBYTE)&g_app.statusVisible, sizeof(BOOL));
+        LoadSetting((LPCWSTR)L"ConvertCRLF", (LPBYTE)&g_app.convertCRLF, sizeof(BOOL));
         ToggleStatusBar(hwnd, g_app.statusVisible);
         UpdateTitle(hwnd);
         UpdateStatusBar(hwnd);
@@ -893,6 +931,10 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     g_app.hwndMain = hwnd;
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
+
+    if (lpCmdLine && wcslen(lpCmdLine) > 0) {
+        LoadDocumentFromPath(hwnd, lpCmdLine);
+    }
 
     HACCEL accel = LoadAcceleratorsW(hInstance, (LPCWSTR)MAKEINTRESOURCE(IDC_RETROPAD));
 
@@ -1121,7 +1163,7 @@ static void DoConvertCRLF(HWND hwnd) {
     }
     WCHAR* ibuf = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + 1) * sizeof(WCHAR));
     if (!ibuf) {
-        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
+        MessageBoxW(hwnd, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
         return;
     }
     GetWindowTextW(g_app.hwndEdit, ibuf, length + 1);
@@ -1136,7 +1178,7 @@ static void DoConvertCRLF(HWND hwnd) {
 
     WCHAR* obuf = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, (length + lines + 1) * sizeof(WCHAR));
     if (!obuf) {
-        MessageBoxW(NULL, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
+        MessageBoxW(hwnd, L"Memory allocation failed.", L"retropad", MB_ICONERROR);
 	    HeapFree(GetProcessHeap(), 0, ibuf);
         return;
     }
@@ -1155,4 +1197,53 @@ static void DoConvertCRLF(HWND hwnd) {
 
     HeapFree(GetProcessHeap(), 0, ibuf);
     HeapFree(GetProcessHeap(), 0, obuf);
+}
+
+static void DoRegisterExtension(HWND hwnd) {
+    HKEY hKey;
+
+    WCHAR appPath[MAX_PATH];
+    if (GetModuleFileNameW(NULL, appPath, ARRAYSIZE(appPath)) == 0) {
+        MessageBoxW(hwnd, L"Failed reading module filename", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegCreateKeyExW(HKEY_CLASSES_ROOT, L".txt", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to create or open '.txt' registry key.  (Run as Administrator)", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE*)L"txtFile", wcslen(L"txtFile")) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to set '.txt' registry value", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegCreateKeyExW(HKEY_CLASSES_ROOT, L"txtFile", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to create or open 'txtFile' registry key", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE*)L"Text Document", wcslen(L"Text Document")) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to set 'txtFile' registry value", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegCreateKeyExW(hKey, L"shell\\open\\command", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to create or open command registry key", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    WCHAR command[512];
+    swprintf_s(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath);
+    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE *)command, wcslen(command)+1) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to set command registry value", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    if (RegCloseKey(hKey) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to close registry key", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    MessageBoxW(hwnd, L"File extension '.txt' associated successfully.", L"retropad", MB_OK);
 }

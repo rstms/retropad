@@ -34,15 +34,17 @@ BEGIN
         MENUITEM "Select &All\tCtrl+A",     IDM_EDIT_SELECT_ALL
         MENUITEM "Time/&Date\tF5",          IDM_EDIT_TIME_DATE
     END
-    POPUP "F&ormat"
+    POPUP "Fo&rmat"
     BEGIN
         MENUITEM "&Word Wrap",              IDM_FORMAT_WORD_WRAP
         MENUITEM "&Font...",                IDM_FORMAT_FONT
-        MENUITEM "&Convert LF to CRLF",	    IDM_FORMAT_CRLF
     END
-    POPUP "&View"
+    POPUP "&Options"
     BEGIN
-        MENUITEM "&Status Bar",             IDM_VIEW_STATUS_BAR, CHECKED
+        MENUITEM "&Status Bar",                 IDM_OPTIONS_STATUS_BAR, CHECKED
+        MENUITEM "&Convert LF to CRLF on load", IDM_OPTIONS_CONVERT_CRLF
+        MENUITEM SEPARATOR
+        MENUITEM "&Associate '.txt' extension", IDM_OPTIONS_REGISTER_EXTENSION
     END
     POPUP "&Help"
     BEGIN
