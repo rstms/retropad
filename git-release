@@ -1,5 +1,11 @@
 #!/bin/sh
 
+if [ -z "$(git status --porcelain)" ]; then
+    echo git status is clean
+else
+    echo git status is dirty
+fi
+exit
 VERSION=$(cat VERSION)
 GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
 GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
