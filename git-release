@@ -5,14 +5,10 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-PROGRAM=$(basename $(pwd))
-echo PROGRAM=$PROGRAM
-exit
-
 VERSION=$(cat VERSION)
 GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
 GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
-INSTALLER=${PROGRAM}-v${VERSion}-win32.exe
+INSTALLER=${GITHUB_REPO}-v${VERSion}-win32.exe
 
 if [ ! -f $INSTALLER ]; then
     echo >&2 Not found: $INSTALLER
