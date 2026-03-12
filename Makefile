@@ -65,4 +65,5 @@ bump: clean
 	git commit -m "v$(shell cat VERSION)"
 	git tag v$(shell cat VERSION)
 	git push
+	git push --tags
 
