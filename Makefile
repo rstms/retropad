@@ -62,12 +62,12 @@ clean:
 bump:	clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
-	@echo new version is $(shell cat VERSION)
+	@echo new version is $$(cat VERSION)
 	git add VERSION
-	git commit -m "v$(shell cat VERSION)"
-	git tag v$(shell cat VERSION)
+	git commit -m "v$$(cat VERSION)"
+	git tag v$$(cat VERSION)
 	git push 
-	git push origin v$(shell cat VERSION)
+	git push origin v$$(cat VERSION)
 
 release: installer
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
