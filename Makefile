@@ -65,7 +65,7 @@ clean:
 sterile: clean
 	rm -f retropad.rc retropad.nsi
 
-bump: 
+bump:	installer 
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
 	@echo new version is $(shell cat VERSION)

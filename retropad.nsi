@@ -13,7 +13,7 @@
 # These three must be integers
 !define VERSIONMAJOR 1
 !define VERSIONMINOR 0
-!define VERSIONBUILD 7
+!define VERSIONBUILD 18
 # These will be displayed by the "Click here for support information" link in "Add/Remove Programs"
 # It is possible to use "mailto:" links in here to open the email client
 !define HELPURL "__HELP_URL__" # "Support Information" link
@@ -32,7 +32,7 @@ LicenseData "LICENSE.txt"
 # This will be in the installer/uninstaller's title bar
 Name "${COMPANYNAME} - ${APPNAME}"
 Icon "retropad.ico"
-outFile "retropad-v1.0.7-win32.exe"
+outFile "retropad-v1.0.18-win32.exe"
  
 !include LogicLib.nsh
  
