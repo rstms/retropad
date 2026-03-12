@@ -60,7 +60,9 @@ clean:
 
 bump: clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
-	echo bumping
-	#@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
-	#@echo "bumped version to $(shell cat VERSION)"
+	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
+	git add VERSION
+	git commit -m "v$(shell cat VERSION)"
+	git tag v$(shell cat VERSION)
+	git push
 
