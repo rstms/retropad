@@ -31,4 +31,4 @@ curl \
     -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: $FILETYPE" \
     --data-binary $INSTALLER \
-    $UPLOAD_URL
+    $UPLOAD_URL | jq .
