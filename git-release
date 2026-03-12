@@ -27,8 +27,12 @@ output=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     }" https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases)
 
 RELEASE_ID=$(echo $output | jq .id)
+FILENAME=$(basename $INSTALLER)
+FILETYPE=$(file --mime-type -b $INSTALLER)
+UPLOAD_URL="https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$FILENAME"
 
-curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Content-Type: $(file --mime-type -b $INSTALLER)" \
-    --data-binary $INSTALLER \
-    "https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $INSTALLER)"
+curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Content-Type: $FILETYPE" \
+    --data-binary @$INSTALLER \
+    $UPLOAD_URL | jq .
+
