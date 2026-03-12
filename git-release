@@ -5,6 +5,10 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+PROGRAM=$(basename $(pwd))
+echo PROGRAM=$PROGRAM
+exit
+
 VERSION=$(cat VERSION)
 GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
 GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
