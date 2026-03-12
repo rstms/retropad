@@ -29,4 +29,4 @@ echo FILETYPE=$FILETYPE
 echo curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: $FILETYPE" \
     --data-binary $INSTALLER \
-    https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$FILENAME
+    "https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
