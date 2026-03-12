@@ -1,0 +1,29 @@
+#!/bin/sh
+
+if [ -n "$(git status --porcelain)" ]; then
+    echo >&2 git status is dirty
+    exit 1
+fi
+
+VERSION=$(cat VERSION)
+GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
+GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
+INSTALLER=${GITHUB_REPO}-v${VERSION}-win32.exe
+
+if [ ! -f $INSTALLER ]; then
+    echo >&2 Not found: $INSTALLER
+    exit 1
+fi
+
+output=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+    https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/latest)
+
+echo $output | jq .
+
+RELEASE_ID=$(echo $output | jq .id)
+
+exit
+curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Content-Type: $(file --mime-type -b $INSTALLER)" \
+    --data-binary $INSTALLER \
+    https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $INSTALLER)
