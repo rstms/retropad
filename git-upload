@@ -22,6 +22,8 @@ echo $output | jq .
 
 RELEASE_ID=$(echo $output | jq .id)
 
+echo RELEASE_ID=$RELEASE_ID
+
 exit
 curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: $(file --mime-type -b $INSTALLER)" \
