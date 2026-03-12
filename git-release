@@ -1,0 +1,16 @@
+#!/bin/sh
+
+VERSION=$(cat VERSION)
+GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
+GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
+
+curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+    "tag_name": "$v${VERSION}",
+    "target_commitish": "main",
+    "name": "Release v${VERSION}", 
+    "body": "Release v${VERSION}",
+    "draft": false,
+    "prerelease": false
+    }' https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases
