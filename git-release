@@ -8,8 +8,14 @@ fi
 VERSION=$(cat VERSION)
 GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
 GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
+INSTALLER=${PROGRAM}-v${VERSion}-win32.exe
 
-curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+if [ ! -f $INSTALLER ]; then
+    echo >&2 Not found: $INSTALLER
+    exit 1
+fi
+
+output=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{
     \"tag_name\": \"v${VERSION}\",
@@ -18,4 +24,13 @@ curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     \"body\": \"Release v${VERSION}\",
     \"draft\": false,
     \"prerelease\": false
-    }" https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases
+    }" https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases)
+
+echo $output
+exit
+
+curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Content-Type: $(file --mime-type -b $INSTALLER)" \
+    --data-binary $INSTALLER \
+    https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $INSTALLER)
+    -d "{
