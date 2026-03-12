@@ -57,11 +57,9 @@ retropad.res.o: retropad.rc resource.h retropad.ico
 
 clean:
 	rm -f $(OBJS) *.exe LICENSE.txt
-
-sterile: clean
 	rm -f retropad.rc retropad.nsi
 
-bump:	installer 
+bump:	clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
 	@echo new version is $(shell cat VERSION)
