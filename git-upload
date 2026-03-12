@@ -9,24 +9,24 @@ VERSION=$(cat VERSION)
 GITHUB_ORG=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $2}')
 GITHUB_REPO=$(git remote -v | awk -F'[:/ ]' '/fetch/{print $3}')
 INSTALLER=${GITHUB_REPO}-v${VERSION}-win32.exe
+RELEASE_URL="https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/latest"
 
 if [ ! -f $INSTALLER ]; then
     echo >&2 Not found: $INSTALLER
     exit 1
 fi
 
-output=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-    https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/latest)
-
-RELEASE_ID=$(echo $output | jq .id)
-FILENAME=$(basename $(INSTALLER)
-FILETYPE=$(file --mime-type -b $INSTALLER)
-
+RELEASE_ID=$(curl -s -H "Accept: application/vnd.github.v3+json" $URL | jq .id)
 echo RELEASE_ID=$RELEASE_ID
+
+FILENAME=$(basename $(INSTALLER)
 echo FILENAME=$FILENAME
+
+FILETYPE=$(file --mime-type -b $INSTALLER)
 echo FILETYPE=$FILETYPE
 
+UPLOAD_URL="https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
 echo curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: $FILETYPE" \
     --data-binary $INSTALLER \
-    "https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
+    $UPLOAD_URL
