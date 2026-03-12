@@ -31,4 +31,4 @@ RELEASE_ID=$(echo $output | jq .id)
 curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: $(file --mime-type -b $INSTALLER)" \
     --data-binary $INSTALLER \
-    https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $INSTALLER)
+    "https://uploads.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $INSTALLER)"
