@@ -59,6 +59,8 @@ clean:
 	rm -f $(OBJS) *.exe LICENSE.txt retropad.rc retropad.nsi
 
 bump: clean
-	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
-	@echo "bumped version to $(shell cat VERSION)"
+	git status --porcelain | grep . && false || true
+	echo bumping
+	#@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
+	#@echo "bumped version to $(shell cat VERSION)"
 
