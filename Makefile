@@ -12,6 +12,7 @@ VERSION != cat VERSION
 MAJOR != awk <VERSION -F. '{print $$1}'
 MINOR != awk <VERSION -F. '{print $$2}'
 PATCH != awk <VERSION -F. '{print $$3}'
+INSTALLER = $(PROGRAM)-v$(VERSION)-win32.exe
 
 MACROS = \
   -D__VERSION__=$(VERSION) \
@@ -23,15 +24,13 @@ MACROS = \
   -D__DESCRIPTION__='heirloom notepad.exe clone' \
   -D__EXE_FILE__=$(PROGRAM).exe \
   -D__ICON_FILE__=$(PROGRAM).ico \
-  -D__INSTALLER_FILE__=$(PROGRAM)-v$(VERSION)-win32.exe \
+  -D__INSTALLER_FILE__=$(INSTALLER) \
   -D__ABOUT_URL__='https://github.com/rstms/retropad' \
   -D__FORK_URL__='https://github.com/PlummersSoftwareLLC/retropad' \
   -D__INSTALL_SIZE__=8192
 
 
-all: installer.exe
-
-installer.exe: retropad.nsi retropad.exe LICENSE.txt
+$(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
 	makensis $<
 
 LICENSE.txt: LICENSE
@@ -69,4 +68,8 @@ bump: clean
 	git tag v$(shell cat VERSION)
 	git push 
 	git push origin v$(shell cat VERSION)
+
+release: $(INSTALLER)
+	$(if $(shell git status --porcelain),$(error git status is dirty),)
+	./git-release
 
