@@ -61,7 +61,7 @@ clean:
 sterile: clean
 	rm -f retropad.rc retropad.nsi
 
-bump: clean all
+bump: clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
 	git add VERSION
