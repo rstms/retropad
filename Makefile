@@ -29,10 +29,6 @@ MACROS = \
   -D__FORK_URL__='https://github.com/PlummersSoftwareLLC/retropad' \
   -D__INSTALL_SIZE__=8192
 
-foo: 
-	@echo INSTALLER=$(INSTALLER)
-	@echo VERSION=$(VERSION)
-
 installer: $(INSTALLER)
 
 $(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
