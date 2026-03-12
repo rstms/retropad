@@ -19,7 +19,7 @@ fi
 RELEASE_ID=$(curl -s -H "Accept: application/vnd.github.v3+json" $RELEASE_URL | jq .id)
 echo RELEASE_ID=$RELEASE_ID
 
-FILENAME=$(basename $(INSTALLER)
+FILENAME=$(basename $INSTALLER)
 echo FILENAME=$FILENAME
 
 FILETYPE=$(file --mime-type -b $INSTALLER)
