@@ -83,14 +83,14 @@ BEGIN
     PUSHBUTTON      "Cancel", IDCANCEL, 120, 44, 50, 14
 END
 
-IDD_ABOUT DIALOGEX 0, 0, 200, 108
+IDD_ABOUT DIALOGEX 0, 0, 200, 132
 STYLE DS_MODALFRAME | WS_CAPTION | WS_SYSMENU
 CAPTION "About retropad"
 FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT "retropad\nA Petzold-style Notepad clone.\nWin32 / C implementation.\n\nEnhancements: https://github.com/rstms/retropad", -1, 12, 12, 176, 64
-    LTEXT "Copyright \xa9 2026", -1, 12, 64, 60, 10
-    DEFPUSHBUTTON "OK", IDOK, 74, 80, 52, 14
+    LTEXT "retropad\nA Petzold-style Notepad clone.\nWin32 / C implementation.\n\nForked from: https://github.com/PlummersSoftwareLLC/retropad\n\nEnhancements:\nhttps://github.com/rstms/retropad", -1, 12, 12, 200, 80
+    LTEXT "Copyright \xa9 2026", -1, 12, 90, 60, 10
+    DEFPUSHBUTTON "OK", IDOK, 74, 110, 52, 14
 END
 
 VS_VERSION_INFO VERSIONINFO

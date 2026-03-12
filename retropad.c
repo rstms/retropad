@@ -75,6 +75,7 @@ static BOOL AddFinalCRLF(WCHAR** buffer, int* len);
 static LPCWSTR StripQuotes(LPWSTR path);
 static void DoRegisterExtension(HWND hwnd);
 static void ToggleCRLF(HWND hwnd, BOOL visible);
+BOOL IsRunningAsAdmin();
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -708,6 +709,8 @@ static void UpdateMenuStates(HWND hwnd) {
     CheckMenuItem(menu, IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | statusState);
     CheckMenuItem(menu, IDM_OPTIONS_CONVERT_CRLF, MF_BYCOMMAND | crlfState);
 
+    EnableMenuItem(menu, IDM_OPTIONS_REGISTER_EXTENSION, MF_BYCOMMAND | (IsRunningAsAdmin() ? MF_ENABLED : MF_GRAYED));
+
     BOOL canGoTo = !g_app.wordWrap;
     EnableMenuItem(menu, IDM_EDIT_GOTO, MF_BYCOMMAND | (canGoTo ? MF_ENABLED : MF_GRAYED));
     if (g_app.wordWrap) {
@@ -1246,4 +1249,18 @@ static void DoRegisterExtension(HWND hwnd) {
     }
 
     MessageBoxW(hwnd, L"File extension '.txt' associated successfully.", L"retropad", MB_OK);
+}
+
+BOOL IsRunningAsAdmin() {
+    BOOL isAdmin = FALSE;
+    HANDLE hToken = NULL;
+    TOKEN_ELEVATION elevation;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        DWORD size;
+        if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &size)) {
+            isAdmin = elevation.TokenIsElevated;
+        }
+        CloseHandle(hToken);
+    }
+    return isAdmin;
 }
