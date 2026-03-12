@@ -16,7 +16,7 @@ if [ ! -f $INSTALLER ]; then
     exit 1
 fi
 
-RELEASE_ID=$(curl -s -H "Accept: application/vnd.github.v3+json" $URL | jq .id)
+RELEASE_ID=$(curl -s -H "Accept: application/vnd.github.v3+json" $RELEASE_URL | jq .id)
 echo RELEASE_ID=$RELEASE_ID
 
 FILENAME=$(basename $(INSTALLER)
