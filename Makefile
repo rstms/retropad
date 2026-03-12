@@ -67,6 +67,6 @@ bump: clean
 	git add VERSION
 	git commit -m "v$(shell cat VERSION)"
 	git tag v$(shell cat VERSION)
-	git push
-	git push --tags
+	git push 
+	git push origin v$(shell cat VERSION)
 
