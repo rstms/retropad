@@ -56,7 +56,10 @@ retropad.res.o: retropad.rc resource.h retropad.ico
 	$(WINDRES) -i $(PWD)/$< -o $@
 
 clean:
-	rm -f $(OBJS) *.exe LICENSE.txt retropad.rc retropad.nsi
+	rm -f $(OBJS) *.exe LICENSE.txt
+
+sterile: clean
+	rm -f retropad.rc retropad.nsi
 
 bump: clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
