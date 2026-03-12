@@ -29,6 +29,11 @@ MACROS = \
   -D__FORK_URL__='https://github.com/PlummersSoftwareLLC/retropad' \
   -D__INSTALL_SIZE__=8192
 
+foo: 
+	@echo INSTALLER=$(INSTALLER)
+	@echo VERSION=$(VERSION)
+
+installer: $(INSTALLER)
 
 $(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
 	makensis $<
@@ -36,7 +41,7 @@ $(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
 LICENSE.txt: LICENSE
 	unix2dos -n $< $@
 
-retropad.nsi: retropad.nsi.in
+retropad.nsi: retropad.nsi.in VERSION
 	m4 <$< >$@ $(MACROS)
 
 retropad.exe: $(OBJS)
@@ -48,7 +53,7 @@ retropad.o: retropad.c resource.h file_io.h
 file_io.o: file_io.c file_io.h resource.h
 	$(CC) $(CFLAGS) -c file_io.c
 
-retropad.rc: retropad.rc.in
+retropad.rc: retropad.rc.in VERSION
 	m4 <$< >$@ $(MACROS)
 
 retropad.res.o: retropad.rc resource.h retropad.ico
@@ -60,7 +65,7 @@ clean:
 sterile: clean
 	rm -f retropad.rc retropad.nsi
 
-bump: clean
+bump: 
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
 	git add VERSION
@@ -69,7 +74,7 @@ bump: clean
 	git push 
 	git push origin v$(shell cat VERSION)
 
-release: $(INSTALLER)
+release: installer
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	./git-release
 
