@@ -12,6 +12,7 @@
 #include <strsafe.h>
 #include "resource.h"
 #include "file_io.h"
+#include "shlobj_core.h"
 
 #define APP_TITLE      L"retropad"
 #define UNTITLED_NAME  L"Untitled"
@@ -76,6 +77,14 @@ static LPCWSTR StripQuotes(LPWSTR path);
 static void DoRegisterExtension(HWND hwnd);
 static void ToggleCRLF(HWND hwnd, BOOL visible);
 BOOL IsRunningAsAdmin();
+
+static BOOL PruneRegistryKey(HWND hwnd, LPCWSTR path, BOOL quiet);
+static HKEY CreateRegistryKey(HWND hwnd, LPCWSTR path);
+static BOOL SetRegistryValue(HWND hwnd, HKEY hKey, LPCWSTR name, DWORD type, const BYTE* data, DWORD len);
+static BOOL CloseRegistryKey(HWND hwnd, HKEY hKey);
+static BOOL RegisterAppPath(HWND hwnd, LPCWSTR appPath);
+static BOOL RegisterFileType(HWND hwnd);
+static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appPath);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -709,8 +718,6 @@ static void UpdateMenuStates(HWND hwnd) {
     CheckMenuItem(menu, IDM_OPTIONS_STATUS_BAR, MF_BYCOMMAND | statusState);
     CheckMenuItem(menu, IDM_OPTIONS_CONVERT_CRLF, MF_BYCOMMAND | crlfState);
 
-    EnableMenuItem(menu, IDM_OPTIONS_REGISTER_EXTENSION, MF_BYCOMMAND | (IsRunningAsAdmin() ? MF_ENABLED : MF_GRAYED));
-
     BOOL canGoTo = !g_app.wordWrap;
     EnableMenuItem(menu, IDM_EDIT_GOTO, MF_BYCOMMAND | (canGoTo ? MF_ENABLED : MF_GRAYED));
     if (g_app.wordWrap) {
@@ -798,10 +805,6 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 
     case IDM_OPTIONS_CONVERT_CRLF:
         ToggleCRLF(hwnd, !g_app.convertCRLF);
-        break;
-
-    case IDM_OPTIONS_REGISTER_EXTENSION:
-        DoRegisterExtension(hwnd);
         break;
 
     case IDM_HELP_VIEW_HELP:
@@ -932,6 +935,13 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     }
 
     g_app.hwndMain = hwnd;
+
+    // check for /register before showing the window
+    if (lpCmdLine && wcslen(lpCmdLine) > 0 && !wcscmp(lpCmdLine, L"/register")) {
+        DoRegisterExtension(hwnd);
+        return 0;
+    }
+
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
@@ -1202,53 +1212,107 @@ static void DoConvertCRLF(HWND hwnd) {
     HeapFree(GetProcessHeap(), 0, obuf);
 }
 
-static void DoRegisterExtension(HWND hwnd) {
-    HKEY hKey;
+static BOOL PruneRegistryKey(HWND hwnd, LPCWSTR path, BOOL quiet) {
+    //MessageBox(hwnd, path, L"PruneRegistryKey", MB_OK);
+    if (RegDeleteTreeW(HKEY_CURRENT_USER, path) != ERROR_SUCCESS) {
+        if (!quiet) {
+            MessageBoxW(hwnd, L"Failed to delete registry path", L"retropad", MB_ICONERROR);
+        }
+        return FALSE;
+    }
+    return TRUE;
+}
 
-    WCHAR appPath[MAX_PATH];
+static HKEY CreateRegistryKey(HWND hwnd, LPCWSTR path) {
+    //MessageBox(hwnd, path, L"CreateRegistryKey", MB_OK);
+
+    HKEY hKey;
+    if (RegCreateKeyW(HKEY_CURRENT_USER, path, &hKey) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to create or open registry key.", L"retropad", MB_ICONERROR);
+        return NULL;
+    }
+    return hKey;
+}
+
+static BOOL SetRegistryValue(HWND hwnd, HKEY hKey, LPCWSTR name, DWORD type, const BYTE* data, DWORD len) {
+    //MessageBox(hwnd, name, L"SetRegistryValue", MB_OK);
+    if (RegSetValueExW(hKey, name, 0, type, data, len) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to set registry value", L"retropad", MB_ICONERROR);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL CloseRegistryKey(HWND hwnd, HKEY hKey) {
+    //MessageBox(hwnd, L"closing", L"CloseRegistryKey", MB_OK);
+    if (RegCloseKey(hKey) != ERROR_SUCCESS) {
+        MessageBoxW(hwnd, L"Failed to close registry key", L"retropad", MB_ICONERROR);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL RegisterAppPath(HWND hwnd, LPCWSTR appPath) {
+    BOOL ret = FALSE;
+    LPCWSTR path = L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\retropad.exe";
+    PruneRegistryKey(hwnd, path, TRUE);
+    HKEY hKey = CreateRegistryKey(hwnd, path);
+    if (hKey) {
+        ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE*)appPath, (wcslen(appPath) + 1) * sizeof(WCHAR));
+        CloseRegistryKey(hwnd, hKey);
+    }
+    return ret;
+}
+
+static BOOL RegisterFileType(HWND hwnd) {
+    BOOL ret = FALSE;
+    LPCWSTR path = L"Software\\Classes\\.txt";
+    PruneRegistryKey(hwnd, path, TRUE);
+    HKEY hKey = CreateRegistryKey(hwnd, path);
+    if (!hKey) return FALSE;
+    LPCWSTR progId = L"retropad.txt.1";
+    ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE *)progId, (wcslen(progId) + 1) * sizeof(WCHAR));
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appPath) {
+    BOOL ret = FALSE;
+    PruneRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1", TRUE);
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1\\shell\\open");
+    if (!hKey) return FALSE;
+    WCHAR command[MAX_PATH_BUFFER + 64];
+    if (SUCCEEDED(StringCchPrintfW(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath))) {
+        ret = TRUE;
+    }
+    if (ret) {
+        ret = SetRegistryValue(hwnd, hKey, L"command", REG_SZ, (const BYTE *)command, (wcslen(command) + 1) * sizeof(WCHAR));
+    }
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+static void DoRegisterExtension(HWND hwnd) {
+
+    if (!IsRunningAsAdmin()) {
+        MessageBoxW(hwnd, L"Administrator rights are required for the /register command.", L"retropad", MB_ICONERROR);
+        return;
+    }
+
+    WCHAR appPath[MAX_PATH_BUFFER];
     if (GetModuleFileNameW(NULL, appPath, ARRAYSIZE(appPath)) == 0) {
         MessageBoxW(hwnd, L"Failed reading module filename", L"retropad", MB_ICONERROR);
         return;
     }
+    if (!RegisterAppPath(hwnd, appPath)) return;
+    if (!RegisterFileType(hwnd)) return;
+    if (!RegisterAppAssociation(hwnd, appPath)) return;
 
-    if (RegCreateKeyExW(HKEY_CLASSES_ROOT, L".txt", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to create or open '.txt' registry key.  (Run as Administrator)", L"retropad", MB_ICONERROR);
-        return;
-    }
+    // remove the explorer association
+    PruneRegistryKey(hwnd, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.txt", TRUE);
 
-    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE*)L"txtFile", wcslen(L"txtFile")) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to set '.txt' registry value", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    if (RegCreateKeyExW(HKEY_CLASSES_ROOT, L"txtFile", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to create or open 'txtFile' registry key", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE*)L"Text Document", wcslen(L"Text Document")) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to set 'txtFile' registry value", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    if (RegCreateKeyExW(hKey, L"shell\\open\\command", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to create or open command registry key", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    WCHAR command[512];
-    swprintf_s(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath);
-    if (RegSetValueExW(hKey, L"", 0, REG_SZ, (const BYTE *)command, wcslen(command)+1) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to set command registry value", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    if (RegCloseKey(hKey) != ERROR_SUCCESS) {
-        MessageBoxW(hwnd, L"Failed to close registry key", L"retropad", MB_ICONERROR);
-        return;
-    }
-
-    MessageBoxW(hwnd, L"File extension '.txt' associated successfully.", L"retropad", MB_OK);
+    // inform the shell of changed file type associations
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_FLUSH, NULL, NULL);
 }
 
 BOOL IsRunningAsAdmin() {
@@ -1264,3 +1328,4 @@ BOOL IsRunningAsAdmin() {
     }
     return isAdmin;
 }
+
