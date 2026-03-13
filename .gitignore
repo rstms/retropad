@@ -8,4 +8,6 @@ Release
 .vscode
 .idea
 test.*
-Setup
+LICENSE.txt
+*.rc
+*.nsi

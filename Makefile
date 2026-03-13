@@ -6,7 +6,40 @@ LIBS = -luser32 -lgdi32 -lcomdlg32 -lcomctl32 -lshell32
 
 OBJS = retropad.o file_io.o retropad.res.o
 
-all: retropad.exe
+PROGRAM = retropad
+COMPANY = retropad
+VERSION != cat VERSION
+MAJOR != awk <VERSION -F. '{print $$1}'
+MINOR != awk <VERSION -F. '{print $$2}'
+PATCH != awk <VERSION -F. '{print $$3}'
+INSTALLER = $(PROGRAM)-v$(VERSION)-win32.exe
+
+MACROS = \
+  -D__VERSION__=$(VERSION) \
+  -D__MAJOR__=$(MAJOR) \
+  -D__MINOR__=$(MINOR) \
+  -D__PATCH__=$(PATCH) \
+  -D__PROGRAM__=$(PROGRAM) \
+  -D__COMPANY__=$(COMPANY) \
+  -D__DESCRIPTION__='heirloom notepad.exe clone' \
+  -D__EXE_FILE__=$(PROGRAM).exe \
+  -D__ICON_FILE__=$(PROGRAM).ico \
+  -D__INSTALLER_FILE__=$(INSTALLER) \
+  -D__ABOUT_URL__='https://github.com/rstms/retropad' \
+  -D__FORK_URL__='https://github.com/PlummersSoftwareLLC/retropad' \
+  -D__INSTALL_SIZE__=8192
+
+installer: $(INSTALLER)
+
+$(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
+	makensis $<
+	rm LICENSE.txt
+
+LICENSE.txt: LICENSE
+	unix2dos -n $< $@
+
+retropad.nsi: retropad.nsi.in VERSION
+	m4 <$< >$@ $(MACROS)
 
 retropad.exe: $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
@@ -17,8 +50,27 @@ retropad.o: retropad.c resource.h file_io.h
 file_io.o: file_io.c file_io.h resource.h
 	$(CC) $(CFLAGS) -c file_io.c
 
-retropad.res.o: retropad.rc resource.h res/retropad.ico
+retropad.rc: retropad.rc.in VERSION
+	m4 <$< >$@ $(MACROS)
+
+retropad.res.o: retropad.rc resource.h retropad.ico VERSION
 	$(WINDRES) -i $(PWD)/$< -o $@
+	rm retropad.rc
 
 clean:
-	rm -f retropad.exe $(OBJS)
+	rm -f $(OBJS) *.exe LICENSE.txt
+	rm -f retropad.rc retropad.nsi
+
+bump:	clean
+	$(if $(shell git status --porcelain),$(error git status is dirty),)
+	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
+	$(MAKE) installer
+	git commit -a -m "v$$(cat VERSION)"
+	git tag v$$(cat VERSION)
+	git push 
+	git push origin v$$(cat VERSION)
+
+release: installer
+	$(if $(shell git status --porcelain),$(error git status is dirty),)
+	./git-release
+

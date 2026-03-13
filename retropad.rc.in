@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "resource.h"
 
-IDI_RETROPAD ICON "res/retropad.ico"
+IDI_RETROPAD ICON "__ICON_FILE__"
 
 IDC_RETROPAD MENU
 BEGIN
@@ -43,12 +43,10 @@ BEGIN
     BEGIN
         MENUITEM "&Status Bar",                 IDM_OPTIONS_STATUS_BAR, CHECKED
         MENUITEM "&Convert LF to CRLF on load", IDM_OPTIONS_CONVERT_CRLF
-        MENUITEM SEPARATOR
-        MENUITEM "&Associate '.txt' extension", IDM_OPTIONS_REGISTER_EXTENSION
     END
     POPUP "&Help"
     BEGIN
-        MENUITEM "&About retropad",         IDM_HELP_ABOUT
+        MENUITEM "&About __PROGRAM__",         IDM_HELP_ABOUT
     END
 END
 
@@ -83,19 +81,20 @@ BEGIN
     PUSHBUTTON      "Cancel", IDCANCEL, 120, 44, 50, 14
 END
 
-IDD_ABOUT DIALOGEX 0, 0, 200, 132
+IDD_ABOUT DIALOGEX 0, 0, 200, 140
 STYLE DS_MODALFRAME | WS_CAPTION | WS_SYSMENU
-CAPTION "About retropad"
+CAPTION "About __PROGRAM__"
 FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT "retropad\nA Petzold-style Notepad clone.\nWin32 / C implementation.\n\nForked from: https://github.com/PlummersSoftwareLLC/retropad\n\nEnhancements:\nhttps://github.com/rstms/retropad", -1, 12, 12, 200, 80
-    LTEXT "Copyright \xa9 2026", -1, 12, 90, 60, 10
-    DEFPUSHBUTTON "OK", IDOK, 74, 110, 52, 14
+    LTEXT "__PROGRAM__\nA Petzold-style Notepad clone.\nWin32 / C implementation.\n\nForked from: __FORK_URL__\n\nEnhancements: __ABOUT_URL__", -1, 12, 12, 200, 80
+    LTEXT "Version __VERSION__", -1, 12, 90, 60, 10
+    LTEXT "Copyright \xa9 2026", -1, 12, 98, 60, 10
+    DEFPUSHBUTTON "OK", IDOK, 74, 118, 52, 14
 END
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION __MAJOR__,__MINOR__,__PATCH__,0
+ PRODUCTVERSION __MAJOR__,__MINOR__,__PATCH__,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -110,13 +109,13 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "retropad"
-            VALUE "FileDescription", "retropad text editor"
-            VALUE "FileVersion", "1.0.0.0"
-            VALUE "InternalName", "retropad.exe"
-            VALUE "OriginalFilename", "retropad.exe"
-            VALUE "ProductName", "retropad"
-            VALUE "ProductVersion", "1.0.0.0"
+            VALUE "CompanyName", "__COMPANY__"
+            VALUE "FileDescription", "__DESCRIPTION__"
+            VALUE "FileVersion", "__VERSION__.0"
+            VALUE "InternalName", "__EXE_FILE__"
+            VALUE "OriginalFilename", "__EXE_FILE__"
+            VALUE "ProductName", "__PROGRAM__"
+            VALUE "ProductVersion", "__VERSION__.0"
         END
     END
     BLOCK "VarFileInfo"
