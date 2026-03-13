@@ -9,5 +9,4 @@ Release
 .idea
 test.*
 LICENSE.txt
-*.rc
 *.nsi

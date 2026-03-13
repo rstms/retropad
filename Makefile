@@ -33,7 +33,6 @@ installer: $(INSTALLER)
 
 $(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
 	makensis $<
-	rm LICENSE.txt
 
 LICENSE.txt: LICENSE
 	unix2dos -n $< $@
@@ -55,11 +54,9 @@ retropad.rc: retropad.rc.in VERSION
 
 retropad.res.o: retropad.rc resource.h retropad.ico VERSION
 	$(WINDRES) -i $(PWD)/$< -o $@
-	rm retropad.rc
 
 clean:
-	rm -f $(OBJS) *.exe LICENSE.txt
-	rm -f retropad.rc retropad.nsi
+	rm -f $(OBJS) *.exe LICENSE.txt retropad.nsi
 
 bump:	clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
