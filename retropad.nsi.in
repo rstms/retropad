@@ -1,4 +1,4 @@
-﻿# This installs two files, app.exe and logo.ico, creates a start menu shortcut, builds an uninstaller, and
+# This installs two files, app.exe and logo.ico, creates a start menu shortcut, builds an uninstaller, and
 # adds uninstall information to the registry for Add/Remove Programs
  
 # To get started, put this script into a folder with the two files (app.exe, logo.ico, and license.rtf -
@@ -25,7 +25,7 @@
  
 RequestExecutionLevel admin ;Require admin rights on NT6+ (When UAC is turned on)
  
-InstallDir "$PROGRAMFILES\${COMPANYNAME}\${APPNAME}"
+InstallDir "$PROGRAMFILES32\${COMPANYNAME}\${APPNAME}"
  
 LicenseData "LICENSE.txt"
 
