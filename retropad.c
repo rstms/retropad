@@ -12,7 +12,7 @@
 #include <strsafe.h>
 #include "resource.h"
 #include "file_io.h"
-#include "shlobj_core.h"
+#include "shlobj.h"
 
 #define APP_TITLE      L"retropad"
 #define UNTITLED_NAME  L"Untitled"
@@ -1313,6 +1313,8 @@ static void DoRegisterExtension(HWND hwnd) {
 
     // inform the shell of changed file type associations
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_FLUSH, NULL, NULL);
+
+    MessageBoxW(hwnd, L"File extension '.txt' associated successfully.", L"retropad", MB_ICONERROR);
 }
 
 BOOL IsRunningAsAdmin() {
