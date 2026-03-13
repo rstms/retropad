@@ -64,9 +64,8 @@ clean:
 bump:	clean
 	$(if $(shell git status --porcelain),$(error git status is dirty),)
 	@echo >VERSION "$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH) + 1)))"
-	@echo new version is $$(cat VERSION)
-	git add VERSION
-	git commit -m "v$$(cat VERSION)"
+	$(MAKE) installer
+	git commit -a -m "v$$(cat VERSION)"
 	git tag v$$(cat VERSION)
 	git push 
 	git push origin v$$(cat VERSION)
