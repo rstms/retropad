@@ -33,6 +33,7 @@ installer: $(INSTALLER)
 
 $(INSTALLER): retropad.nsi retropad.exe LICENSE.txt
 	makensis $<
+	rm LICENSE.txt
 
 LICENSE.txt: LICENSE
 	unix2dos -n $< $@
@@ -52,8 +53,9 @@ file_io.o: file_io.c file_io.h resource.h
 retropad.rc: retropad.rc.in VERSION
 	m4 <$< >$@ $(MACROS)
 
-retropad.res.o: retropad.rc resource.h retropad.ico
+retropad.res.o: retropad.rc resource.h retropad.ico VERSION
 	$(WINDRES) -i $(PWD)/$< -o $@
+	rm retropad.rc
 
 clean:
 	rm -f $(OBJS) *.exe LICENSE.txt
