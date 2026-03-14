@@ -86,6 +86,7 @@ static BOOL RegisterAppPath(HWND hwnd, LPCWSTR appPath);
 static BOOL RegisterFileType(HWND hwnd);
 static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appName);
 static BOOL RegisterAppShellOpen(HWND hwnd, LPCWSTR appPath);
+static BOOL RegisterAppShellEdit(HWND hwnd, LPCWSTR appPath);
 static BOOL RegisterOpenWith(HWND hwnd);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
@@ -1306,6 +1307,22 @@ static BOOL RegisterAppShellOpen(HWND hwnd, LPCWSTR appPath) {
     return ret;
 }
 
+static BOOL RegisterAppShellEdit(HWND hwnd, LPCWSTR appPath) {
+    BOOL ret = FALSE;
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1\\shell\\edit\\command");
+    if (!hKey) return FALSE;
+    WCHAR command[MAX_PATH_BUFFER + 64];
+    if (SUCCEEDED(StringCchPrintfW(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath))) {
+        ret = TRUE;
+    }
+    if (ret) {
+        ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE *)command, (wcslen(command) + 1) * sizeof(WCHAR));
+    }
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+
 static BOOL RegisterOpenWith(HWND hwnd) {
     BOOL ret = FALSE;
     HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\.txt\\OpenWithProgids");
@@ -1333,6 +1350,7 @@ static void DoRegisterExtension(HWND hwnd) {
     if (!RegisterFileType(hwnd)) return;
     if (!RegisterAppAssociation(hwnd, L"retropad text editor")) return;
     if (!RegisterAppShellOpen(hwnd, appPath)) return;
+    if (!RegisterAppShellEdit(hwnd, appPath)) return;
     if (!RegisterOpenWith(hwnd)) return;
 
     // remove the explorer association
