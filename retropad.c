@@ -12,7 +12,7 @@
 #include <strsafe.h>
 #include "resource.h"
 #include "file_io.h"
-#include "shlobj_core.h"
+#include "shlobj.h"
 
 #define APP_TITLE      L"retropad"
 #define UNTITLED_NAME  L"Untitled"
@@ -84,7 +84,10 @@ static BOOL SetRegistryValue(HWND hwnd, HKEY hKey, LPCWSTR name, DWORD type, con
 static BOOL CloseRegistryKey(HWND hwnd, HKEY hKey);
 static BOOL RegisterAppPath(HWND hwnd, LPCWSTR appPath);
 static BOOL RegisterFileType(HWND hwnd);
-static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appPath);
+static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appName);
+static BOOL RegisterAppShellOpen(HWND hwnd, LPCWSTR appPath);
+static BOOL RegisterAppShellEdit(HWND hwnd, LPCWSTR appPath);
+static BOOL RegisterOpenWith(HWND hwnd);
 
 static BOOL GetEditText(HWND hwndEdit, WCHAR **bufferOut, int *lengthOut) {
     int length = GetWindowTextLengthW(hwndEdit);
@@ -937,9 +940,12 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     g_app.hwndMain = hwnd;
 
     // check for /register before showing the window
-    if (lpCmdLine && wcslen(lpCmdLine) > 0 && !wcscmp(lpCmdLine, L"/register")) {
-        DoRegisterExtension(hwnd);
-        return 0;
+    if (lpCmdLine && wcslen(lpCmdLine) > 0) {
+	if (wcscmp(lpCmdLine, L"/register")==0 || wcscmp(lpCmdLine, L"--register") == 0) {
+	    MessageBoxW(NULL, L"Registering '.txt' file extension.", APP_TITLE, MB_OK);
+	    DoRegisterExtension(hwnd);
+	    return 0;
+	}
     }
 
     ShowWindow(hwnd, nCmdShow);
@@ -1293,28 +1299,64 @@ static BOOL RegisterFileType(HWND hwnd) {
     return ret;
 }
 
-static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appPath) {
+static BOOL RegisterAppAssociation(HWND hwnd, LPCWSTR appName) {
     BOOL ret = FALSE;
     PruneRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1", TRUE);
-    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1\\shell\\open");
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1");
+    if (!hKey) return FALSE;
+    ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE *)appName, (wcslen(appName) + 1) * sizeof(WCHAR));
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+static BOOL RegisterAppShellOpen(HWND hwnd, LPCWSTR appPath) {
+    BOOL ret = FALSE;
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1\\shell\\open\\command");
     if (!hKey) return FALSE;
     WCHAR command[MAX_PATH_BUFFER + 64];
     if (SUCCEEDED(StringCchPrintfW(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath))) {
         ret = TRUE;
     }
     if (ret) {
-        ret = SetRegistryValue(hwnd, hKey, L"command", REG_SZ, (const BYTE *)command, (wcslen(command) + 1) * sizeof(WCHAR));
+        ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE *)command, (wcslen(command) + 1) * sizeof(WCHAR));
     }
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+static BOOL RegisterAppShellEdit(HWND hwnd, LPCWSTR appPath) {
+    BOOL ret = FALSE;
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\retropad.txt.1\\shell\\edit\\command");
+    if (!hKey) return FALSE;
+    WCHAR command[MAX_PATH_BUFFER + 64];
+    if (SUCCEEDED(StringCchPrintfW(command, ARRAYSIZE(command), L"\"%s\" \"%%1\"", appPath))) {
+        ret = TRUE;
+    }
+    if (ret) {
+        ret = SetRegistryValue(hwnd, hKey, NULL, REG_SZ, (const BYTE *)command, (wcslen(command) + 1) * sizeof(WCHAR));
+    }
+    if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
+    return ret;
+}
+
+
+static BOOL RegisterOpenWith(HWND hwnd) {
+    BOOL ret = FALSE;
+    HKEY hKey = CreateRegistryKey(hwnd, L"Software\\Classes\\.txt\\OpenWithProgids");
+    if (!hKey) return FALSE;
+    ret = SetRegistryValue(hwnd, hKey, L"retropad.txt.1", REG_SZ, (const BYTE *)L"", 0); 
     if (!CloseRegistryKey(hwnd, hKey)) return FALSE;
     return ret;
 }
 
 static void DoRegisterExtension(HWND hwnd) {
 
+    /*
     if (!IsRunningAsAdmin()) {
         MessageBoxW(hwnd, L"Administrator rights are required for the /register command.", L"retropad", MB_ICONERROR);
         return;
     }
+    */
 
     WCHAR appPath[MAX_PATH_BUFFER];
     if (GetModuleFileNameW(NULL, appPath, ARRAYSIZE(appPath)) == 0) {
@@ -1323,13 +1365,18 @@ static void DoRegisterExtension(HWND hwnd) {
     }
     if (!RegisterAppPath(hwnd, appPath)) return;
     if (!RegisterFileType(hwnd)) return;
-    if (!RegisterAppAssociation(hwnd, appPath)) return;
+    if (!RegisterAppAssociation(hwnd, L"retropad text editor")) return;
+    if (!RegisterAppShellOpen(hwnd, appPath)) return;
+    if (!RegisterAppShellEdit(hwnd, appPath)) return;
+    if (!RegisterOpenWith(hwnd)) return;
 
     // remove the explorer association
     PruneRegistryKey(hwnd, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.txt", TRUE);
 
     // inform the shell of changed file type associations
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_FLUSH, NULL, NULL);
+
+    MessageBoxW(hwnd, L"File extension '.txt' associated successfully.", L"retropad", MB_ICONINFORMATION);
 }
 
 BOOL IsRunningAsAdmin() {
