@@ -533,6 +533,7 @@ static BOOL DoFindNext(BOOL reverse) {
         return TRUE;
     }
     MessageBoxW(g_app.hwndMain, L"Cannot find the text.", APP_TITLE, MB_ICONINFORMATION);
+
     return FALSE;
 }
 
@@ -701,9 +702,11 @@ static void HandleFindReplace(LPFINDREPLACE lpfr) {
         WCHAR msg[64];
         StringCchPrintfW(msg, ARRAYSIZE(msg), L"Replaced %d occurrence%s.", replaced, replaced == 1 ? L"" : L"s");
         MessageBoxW(g_app.hwndMain, msg, APP_TITLE, MB_OK | MB_ICONINFORMATION);
-        if (g_app.hReplaceDlg) {
-            SetForegroundWindow(g_app.hReplaceDlg);
-        }
+    }
+    if (g_app.hReplaceDlg) {
+        SetForegroundWindow(g_app.hReplaceDlg);
+    } else if (g_app.hFindDlg) {
+        SetForegroundWindow(g_app.hFindDlg);
     }
 }
 
@@ -807,9 +810,6 @@ static void HandleCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         ToggleCRLF(hwnd, !g_app.convertCRLF);
         break;
 
-    case IDM_HELP_VIEW_HELP:
-        MessageBoxW(hwnd, L"No help file is available for retropad.", APP_TITLE, MB_ICONINFORMATION);
-        break;
     case IDM_HELP_ABOUT:
         DialogBoxW(g_hInst, (LPCWSTR)MAKEINTRESOURCE(IDD_ABOUT), hwnd, AboutDlgProc);
         break;
@@ -950,14 +950,31 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     }
 
     HACCEL accel = LoadAcceleratorsW(hInstance, (LPCWSTR)MAKEINTRESOURCE(IDC_RETROPAD));
+    if (!accel) {
+        MessageBoxW(hwnd, L"LoadAccelerators failed.", L"retropad", MB_ICONERROR);
+    }
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
-        if (!accel || !TranslateAcceleratorW(hwnd, accel, &msg)) {
-            if (g_app.hFindDlg && IsDialogMessageW(g_app.hFindDlg, &msg)) continue;
-            if (g_app.hReplaceDlg && IsDialogMessageW(g_app.hReplaceDlg, &msg)) continue;
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+        if (g_app.hFindDlg) {
+            if (!IsDialogMessageW(g_app.hFindDlg, &msg)) {
+                if (!TranslateAcceleratorW(g_app.hFindDlg, accel, &msg)) {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        } else if (g_app.hReplaceDlg) {
+            if (!IsDialogMessageW(g_app.hReplaceDlg, &msg)) {
+                if (!TranslateAcceleratorW(g_app.hReplaceDlg, accel, &msg)) {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        } else {
+            if (!TranslateAcceleratorW(NULL, accel, &msg)) {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
         }
     }
 
